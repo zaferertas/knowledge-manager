@@ -33,28 +33,28 @@ Work one milestone or coherent sub-step at a time. A milestone is complete only 
 - [x] Provide PostgreSQL + pgvector through Docker Compose, env example, migration/setup instructions, root README, and basic health endpoint.
 - [x] Create **only** `apps/mobile/README.md` describing the deferred KMP, Compose and SwiftUI modules; no fake native project.
 - [x] Wire tested root scripts (`lint`, `typecheck`, `test`, `test:integration`, `build`) and extend CI to run them against real PostgreSQL/pgvector; ensure synthetic fixtures and deterministic fake AI providers.
-- [ ] Activate and verify [agent/Git hooks](./HOOKS.md), configure protected branches/required checks, and document developer setup.
+- [x] Activate and verify [agent/Git hooks](./HOOKS.md), configure protected branches/required checks, and document developer setup.
 
 **Tests:** Clean install/start, Postgres/pgvector smoke, API health, Git hook failure/success, CI run.
 
 **Exit:** Reproducible scaffold and enforced CI, with no private data committed; native folder is a placeholder only.
 
-**Verification (2026-11-21):** The frozen install, lint, typecheck, hook tests, API health test, pgvector smoke and build passed via `node scripts/verify.mjs ci`. Git uses `.githooks` locally. The [hosted Guardrails run](https://github.com/zaferertas/knowledge-manager/actions/runs/44921080300) passed on the scaffold commit. Milestone 0 remains open because GitHub reports `main` as unprotected and the `guardrails` check is not required. Agent hook activation in the host still needs confirmation.
+**Verification:** The frozen install, lint, typecheck, hook tests, API health test, pgvector smoke and build passed via `node scripts/verify.mjs ci`. Git uses `.githooks` locally. The [hosted Guardrails run](https://github.com/zaferertas/knowledge-manager/actions/runs/44921080300) passed on the scaffold commit. The repository owner confirmed the Codex lifecycle hooks run successfully in a fresh session and GitHub blocks merges to `main` until the required `guardrails` check passes.
 
 ### Milestone 1 — Relational database foundation
 
 **Goal:** Reproducible schema for users, sessions, notes and tags; embedding tables can be created now but are not active.
 
-- [ ] Implement Drizzle migrations for `users`, `sessions`, `notes`, `tags`, `note_tags`, `note_embeddings`; define keys, ownership constraints, timestamps, revisions and deletion cascades as in Architecture.
+- [x] Implement Drizzle migrations for `users`, `sessions`, `notes`, `tags`, `note_tags`, `note_embeddings`; define keys, ownership constraints, timestamps, revisions and deletion cascades as in Architecture.
 - [x] Add owner-scoped pagination/indexes, tag uniqueness and composite note/tag ownership constraints.
 - [x] Initialize Graphile Worker schema using its supported migration mechanism; job execution is introduced in Milestone 5.
-- [ ] Add synthetic seed data and migration instructions. Never rewrite an already-applied migration; add a successor.
+- [x] Add synthetic seed data and migration instructions. Never rewrite an already-applied migration; add a successor.
 
 **Tests:** Empty-DB migration; uniqueness, FK/cascade and ownership constraint tests; pgvector insert/read on real Postgres.
 
 **Exit:** Schema reconstructs from scratch and constraints reject cross-user associations.
 
-**Progress (2026-11-21):** The first Drizzle migration creates users, sessions, notes, tags and note associations. `pnpm test:integration` applied it twice to a fresh PostgreSQL database and verified uniqueness, both ownership foreign keys and deletion cascades. The same command initialized the Graphile Worker schema and verified that its public SQL API can enqueue a synthetic job. The embedding table and reusable seed are pending.
+**Verification:** `node scripts/verify.mjs ci` passed locally against PostgreSQL 17 with pgvector. The integration test ran migrations twice on a fresh database and verified uniqueness, both ownership foreign keys, deletion cascades, and synthetic Graphile Worker job enqueue. It also verified 768-dimensional vector insert/read, vector size rejection, and repeatable seeding that preserves edits. The [README](../README.md#database-migrations) documents the migration and seed commands.
 
 ### Milestone 2 — Authentication and authorization
 

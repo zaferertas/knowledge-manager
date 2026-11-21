@@ -40,6 +40,14 @@ This applies the Drizzle migrations and initializes the Graphile Worker schema t
 
 After changing the Drizzle schema, generate and review a new migration with `pnpm --filter @knowledge-hub/database db:generate --name=describe_change`. Keep applied migrations intact.
 
+On a local development database, optionally load the synthetic garden note and its tag after migrating:
+
+```sh
+pnpm --filter @knowledge-hub/database db:seed
+```
+
+Rerunning the seed preserves existing fixture rows and creates no duplicates. The fixture account has a disabled password placeholder and no session.
+
 Stop the development database with `docker compose --env-file .env -f infra/compose.yaml down`. The volume retains development data. Docker and model downloads are independent. Milestone 0 requires no AI runtime.
 
 See the [implementation plan](docs/IMPLEMENTATION_PLAN.md) and [guardrail setup](docs/HOOKS.md) for release order and CI.

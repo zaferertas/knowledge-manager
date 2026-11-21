@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   check, foreignKey, index, integer, pgTable, primaryKey, text, timestamp,
-  unique, uuid, varchar,
+  unique, uuid, varchar, vector,
 } from 'drizzle-orm/pg-core';
 
 const timestampWithZone = (name: string) => timestamp(name, { withTimezone: true });
@@ -71,4 +71,14 @@ export const noteTags = pgTable('note_tags', {
     foreignColumns: [tags.userId, tags.id],
   }).onDelete('cascade'),
   index('note_tags_tag_idx').on(table.userId, table.tagId, table.noteId),
+]);
+
+export const noteEmbeddings = pgTable('note_embeddings', {
+  noteId: uuid('note_id').primaryKey().references(() => notes.id, { onDelete: 'cascade' }),
+  contentRevision: integer('content_revision').notNull(),
+  modelId: text('model_id').notNull(),
+  embedding: vector({ dimensions: 768 }).notNull(),
+  createdAt: timestampWithZone('created_at').defaultNow().notNull(),
+}, (table) => [
+  check('note_embeddings_revision_positive', sql`${table.contentRevision} > 0`),
 ]);

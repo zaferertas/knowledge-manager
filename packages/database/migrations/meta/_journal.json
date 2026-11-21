@@ -8,6 +8,13 @@
       "when": 1795277003462,
       "tag": "0000_relational_core",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795283312028,
+      "tag": "0001_note_embeddings",
+      "breakpoints": true
     }
   ]
 }

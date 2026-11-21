@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { readFile } from 'node:fs/promises';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { runMigrations } from 'graphile-worker';
@@ -8,6 +9,11 @@ export async function migrateDatabase(connection) {
   const migrationsFolder = fileURLToPath(new URL('./migrations/', import.meta.url));
   await migrate(drizzle(connection), { migrationsFolder });
   await runMigrations({ pgPool: connection });
+}
+
+export async function seedDatabase(connection) {
+  const seed = await readFile(new URL('./seed.sql', import.meta.url), 'utf8');
+  await connection.query(seed);
 }
 
 if (import.meta.main) {
@@ -23,7 +29,11 @@ if (import.meta.main) {
   connection.on('error', reportPoolError);
   connection.on('connect', (client) => client.on('error', reportPoolError));
   try {
-    await migrateDatabase(connection);
+    if (process.argv[2] === 'seed') {
+      await seedDatabase(connection);
+    } else {
+      await migrateDatabase(connection);
+    }
   } finally {
     await connection.end();
   }

@@ -19,7 +19,7 @@ function mustGit(root, ...args) {
 test('real pre-commit blocks private env, premature mobile, and rewrite of migrations', () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'pkh-git-hooks-'));
   try {
-    for (const item of ['AGENTS.md', '.gitignore', 'docs', 'scripts', '.githooks']) {
+    for (const item of ['AGENTS.md', 'README.md', '.gitignore', 'docs', 'scripts', '.githooks']) {
       fs.cpSync(path.join(ROOT, item), path.join(temp, item), { recursive: true });
     }
     mustGit(temp, 'init', '-q');

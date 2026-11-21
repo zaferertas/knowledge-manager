@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import pg from 'pg';
-import { migrateDatabase } from '../migrate.mjs';
+import { migrateDatabase, seedDatabase } from '../migrate.mjs';
 
 test('migrations rebuild the relational core and initialize the job queue', async () => {
   const database = `knowledge_hub_test_${randomUUID().replaceAll('-', '')}`;
@@ -48,6 +48,24 @@ test('migrations rebuild the relational core and initialize the job queue', asyn
       );
       assert.equal(note.content_revision, 1);
       assert.equal(note.indexing_status, 'pending');
+      const insertEmbedding = `
+        INSERT INTO note_embeddings (note_id, content_revision, model_id, embedding)
+        VALUES ($1, $2, 'synthetic-model', $3)
+      `;
+      const vector = JSON.stringify([1, ...Array(767).fill(0)]);
+      await assert.rejects(connection.query(insertEmbedding, [note.id, 1, '[1,0,0]']), { code: '22000' });
+      await assert.rejects(connection.query(insertEmbedding, [note.id, 0, vector]), { code: '23514' });
+      await assert.rejects(connection.query(insertEmbedding, [randomUUID(), 1, vector]), { code: '23503' });
+      await connection.query(insertEmbedding, [note.id, note.content_revision, vector]);
+      await assert.rejects(connection.query(insertEmbedding, [note.id, 2, vector]), { code: '23505' });
+      const { rows: [embedding] } = await connection.query(`
+        SELECT content_revision, model_id, vector_dims(embedding) AS dimensions,
+          embedding <=> $2::vector AS distance
+        FROM note_embeddings WHERE note_id = $1
+      `, [note.id, vector]);
+      assert.deepEqual(embedding, {
+        content_revision: 1, model_id: 'synthetic-model', dimensions: 768, distance: 0,
+      });
       const { rows: [tag, otherTag] } = await connection.query(
         "INSERT INTO tags (user_id, name, normalized_name) VALUES ($1, 'Demo', 'demo'), ($2, 'Demo', 'demo') RETURNING id",
         [owner.id, other.id],
@@ -69,7 +87,24 @@ test('migrations rebuild the relational core and initialize the job queue', asyn
       await connection.query('DELETE FROM users WHERE id = $1', [owner.id]);
       assert.equal((await connection.query('SELECT * FROM sessions')).rowCount, 0);
       assert.equal((await connection.query('SELECT * FROM notes')).rowCount, 0);
+      assert.equal((await connection.query('SELECT * FROM note_embeddings')).rowCount, 0);
       assert.equal((await connection.query('SELECT * FROM tags')).rowCount, 1);
+
+      await seedDatabase(connection);
+      await connection.query("UPDATE notes SET title = 'Edited fixture note'");
+      await seedDatabase(connection);
+      const { rows: seededNotes } = await connection.query(`
+        SELECT users.email, notes.title, notes.indexing_status, tags.normalized_name
+        FROM note_tags
+        JOIN users ON users.id = note_tags.user_id
+        JOIN notes ON notes.id = note_tags.note_id
+        JOIN tags ON tags.id = note_tags.tag_id
+      `);
+      assert.deepEqual(seededNotes, [{
+        email: 'field-notes@example.test', title: 'Edited fixture note',
+        indexing_status: 'pending', normalized_name: 'gardening',
+      }]);
+      assert.equal((await connection.query('SELECT id FROM notes')).rowCount, 1);
     } finally {
       await connection.end();
       await admin.query(`DROP DATABASE "${database}"`);

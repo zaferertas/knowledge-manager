@@ -159,7 +159,7 @@ Use UUID identifiers (or another documented, consistently used collision-resista
 | `notes` | `id`, `user_id`, `title`, `body`, `content_revision`, `indexing_status`, `created_at`, `updated_at` | FK to users; revision starts at 1, increases only for title/body edits; check status/revision validity |
 | `tags` | `id`, `user_id`, `name`, `normalized_name`, `created_at` | Unique (`user_id`, `normalized_name`) |
 | `note_tags` | `user_id`, `note_id`, `tag_id` | Composite PK/unique; enforce both note/tag ownership, preferably with composite FKs including `user_id` |
-| `note_embeddings` | `note_id`, `content_revision`, `model_id`, `embedding`, `created_at` | One current embedding per note; `note_id` PK and cascading FK; dimensions match pinned model |
+| `note_embeddings` | `note_id`, `content_revision`, `model_id`, `embedding`, `created_at` | One current embedding per note; `note_id` PK and cascading FK; `vector(768)` for the initial `nomic-embed-text` candidate |
 
 Graphile Worker creates and maintains its own schema. Do not duplicate its queue tables in Drizzle's application schema.
 
