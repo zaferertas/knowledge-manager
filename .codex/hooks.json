@@ -1,0 +1,8 @@
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "node scripts/agent-hook.mjs start"}]}],
+    "PreToolUse": [{"matcher": "Bash|exec_command|apply_patch", "hooks": [{"type": "command", "command": "node scripts/agent-hook.mjs pre"}]}],
+    "PostToolUse": [{"matcher": "Bash|exec_command|apply_patch", "hooks": [{"type": "command", "command": "node scripts/agent-hook.mjs post"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "node scripts/agent-hook.mjs stop", "timeout": 200}]}]
+  }
+}

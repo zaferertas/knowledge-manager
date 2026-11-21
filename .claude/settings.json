@@ -1,0 +1,8 @@
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/agent-hook.mjs\" start"}]}],
+    "PreToolUse": [{"matcher": "Bash|Edit|Write|MultiEdit", "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/agent-hook.mjs\" pre"}]}],
+    "PostToolUse": [{"matcher": "Bash|Edit|Write|MultiEdit", "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/agent-hook.mjs\" post"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/agent-hook.mjs\" stop", "timeout": 900}]}]
+  }
+}

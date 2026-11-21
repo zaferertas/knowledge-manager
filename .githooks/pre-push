@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+node scripts/guardrails.mjs all
+node --test scripts/*.test.mjs
+exec node scripts/verify.mjs quick

@@ -1,0 +1,43 @@
+name: Guardrails
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  guardrails:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.1-pg17
+        env:
+          POSTGRES_DB: knowledge_hub
+          POSTGRES_USER: knowledge_hub
+          POSTGRES_PASSWORD: local-development-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U knowledge_hub -d knowledge_hub"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: knowledge_hub
+      PGUSER: knowledge_hub
+      PGPASSWORD: local-development-only
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+      - name: Check repository policy
+        env:
+          GUARDRAILS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/guardrails.mjs ci
+      - name: Verify workspace
+        run: node scripts/verify.mjs ci
