@@ -29,28 +29,32 @@ Work one milestone or coherent sub-step at a time. A milestone is complete only 
 
 **Goal:** A clean checkout can run the minimum API/web scaffold and database.
 
-- [ ] Create pnpm workspace with a tested pinned `packageManager` value, buildable NestJS API and React/Vite app, shared configuration only when used, and runnable worker entrypoint once needed.
-- [ ] Provide PostgreSQL + pgvector through Docker Compose, env example, migration/setup instructions, root README, and basic health endpoint.
-- [ ] Create **only** `apps/mobile/README.md` describing the deferred KMP, Compose and SwiftUI modules; no fake native project.
-- [ ] Wire tested root scripts (`lint`, `typecheck`, `test`, `test:integration`, `build`) and extend CI to run them against real PostgreSQL/pgvector; ensure synthetic fixtures and deterministic fake AI providers.
+- [x] Create pnpm workspace with a tested pinned `packageManager` value, buildable NestJS API and React/Vite app, shared configuration only when used, and runnable worker entrypoint once needed.
+- [x] Provide PostgreSQL + pgvector through Docker Compose, env example, migration/setup instructions, root README, and basic health endpoint.
+- [x] Create **only** `apps/mobile/README.md` describing the deferred KMP, Compose and SwiftUI modules; no fake native project.
+- [x] Wire tested root scripts (`lint`, `typecheck`, `test`, `test:integration`, `build`) and extend CI to run them against real PostgreSQL/pgvector; ensure synthetic fixtures and deterministic fake AI providers.
 - [ ] Activate and verify [agent/Git hooks](./HOOKS.md), configure protected branches/required checks, and document developer setup.
 
 **Tests:** Clean install/start, Postgres/pgvector smoke, API health, Git hook failure/success, CI run.
 
 **Exit:** Reproducible scaffold and enforced CI, with no private data committed; native folder is a placeholder only.
 
+**Verification (2026-11-21):** The frozen install, lint, typecheck, hook tests, API health test, pgvector smoke and build passed via `node scripts/verify.mjs ci`. Git uses `.githooks` locally. The [hosted Guardrails run](https://github.com/zaferertas/knowledge-manager/actions/runs/44921080300) passed on the scaffold commit. Milestone 0 remains open because GitHub reports `main` as unprotected and the `guardrails` check is not required. Agent hook activation in the host still needs confirmation.
+
 ### Milestone 1 — Relational database foundation
 
 **Goal:** Reproducible schema for users, sessions, notes and tags; embedding tables can be created now but are not active.
 
 - [ ] Implement Drizzle migrations for `users`, `sessions`, `notes`, `tags`, `note_tags`, `note_embeddings`; define keys, ownership constraints, timestamps, revisions and deletion cascades as in Architecture.
-- [ ] Add owner-scoped pagination/indexes, tag uniqueness and composite note/tag ownership constraints.
-- [ ] Initialize Graphile Worker schema using its supported migration mechanism; job execution is introduced in Milestone 5.
+- [x] Add owner-scoped pagination/indexes, tag uniqueness and composite note/tag ownership constraints.
+- [x] Initialize Graphile Worker schema using its supported migration mechanism; job execution is introduced in Milestone 5.
 - [ ] Add synthetic seed data and migration instructions. Never rewrite an already-applied migration; add a successor.
 
 **Tests:** Empty-DB migration; uniqueness, FK/cascade and ownership constraint tests; pgvector insert/read on real Postgres.
 
 **Exit:** Schema reconstructs from scratch and constraints reject cross-user associations.
+
+**Progress (2026-11-21):** The first Drizzle migration creates users, sessions, notes, tags and note associations. `pnpm test:integration` applied it twice to a fresh PostgreSQL database and verified uniqueness, both ownership foreign keys and deletion cascades. The same command initialized the Graphile Worker schema and verified that its public SQL API can enqueue a synthetic job. The embedding table and reusable seed are pending.
 
 ### Milestone 2 — Authentication and authorization
 
