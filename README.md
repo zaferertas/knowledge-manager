@@ -26,7 +26,19 @@ pnpm test:integration
 pnpm build
 ```
 
-The integration smoke test exercises pgvector with synthetic vectors and rolls back its changes. It uses the Compose service by default. Set standard PostgreSQL environment variables including `PGHOST` to use a separate database with `psql` installed. Application migrations begin in Milestone 1.
+The integration smoke test exercises pgvector with synthetic vectors and rolls back its changes. It uses the Compose service by default. Set standard PostgreSQL environment variables including `PGHOST` to use a separate database with `psql` installed. The relational test creates and drops a separate temporary database, so the test role needs permission to create databases.
+
+## Database migrations
+
+With Compose running, apply the checked-in migrations with:
+
+```sh
+pnpm --filter @knowledge-hub/database db:migrate
+```
+
+This applies the Drizzle migrations and initializes the Graphile Worker schema through its migration API. The command exits once both schemas are ready. It loads the local `.env` and accepts standard PostgreSQL connection variables. If your `.env` predates the database package, add the `PGPASSWORD` setting from `.env.example` for the local Compose database.
+
+After changing the Drizzle schema, generate and review a new migration with `pnpm --filter @knowledge-hub/database db:generate --name=describe_change`. Keep applied migrations intact.
 
 Stop the development database with `docker compose --env-file .env -f infra/compose.yaml down`. The volume retains development data. Docker and model downloads are independent. Milestone 0 requires no AI runtime.
 
