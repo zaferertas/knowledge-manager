@@ -74,14 +74,16 @@ Work one milestone or coherent sub-step at a time. A milestone is complete only 
 
 **Goal:** All non-AI domain operations work end-to-end against the backend.
 
-- [ ] Implement owner-scoped notes create/list/read/update/delete, input bounds, timestamps and pagination.
-- [ ] Implement tags CRUD, normalized unique names, note-tag replacement/assignment and tag-filtered list.
-- [ ] Update `content_revision` only when title/body changes; ensure delete cascades. Before indexing exists, expose a truthful `pending` / **not yet indexed** state, not a claim that a queue job has run.
-- [ ] Generate OpenAPI schemas, stable error responses and DTO validation; ensure an AI outage never blocks note persistence.
+- [x] Implement owner-scoped notes create/list/read/update/delete, input bounds, timestamps and pagination.
+- [x] Implement tags CRUD, normalized unique names, note-tag replacement/assignment and tag-filtered list.
+- [x] Update `content_revision` only when title/body changes; ensure delete cascades. Before indexing exists, expose a truthful `pending` / **not yet indexed** state, not a claim that a queue job has run.
+- [x] Generate OpenAPI schemas, stable error responses and DTO validation; ensure an AI outage never blocks note persistence.
 
 **Tests:** All CRUD cases, validation boundaries, page ordering, unchanged updates, cross-user guessed IDs, association ownership and cascades.
 
 **Exit:** Documented non-AI API fully usable without Ollama or a live embedding worker.
+
+**Verification:** `node scripts/verify.mjs ci` passed locally against PostgreSQL 17 with pgvector. The integration suite exercised note and tag CRUD, normalized uniqueness, input bounds, stable pagination and tag filtering, unchanged and concurrent note edits, two-account isolation, atomic tag replacement, deletion cascades, and the generated OpenAPI contract. Notes remained writable without any AI service dependency, and the indexing queue stayed empty throughout the CRUD test.
 
 ### Milestone 4 — Web notes-and-tags vertical slice (usable product checkpoint)
 

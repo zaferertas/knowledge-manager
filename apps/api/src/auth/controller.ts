@@ -35,7 +35,7 @@ class Session {
   csrfToken!: string;
 }
 
-class ErrorResponse {
+export class ErrorResponse {
   @ApiProperty()
   code!: string;
 

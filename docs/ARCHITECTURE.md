@@ -264,6 +264,10 @@ Use prefix `/api/v1`, JSON DTOs, standardized error codes, input validation, a d
 
 All paths in table are relative to `/api/v1`.
 
+Note responses include the assigned `tagIds`. `GET /notes` accepts an optional `tagId` UUID and applies that filter before offset pagination. An unavailable tag produces an empty page. `PUT /notes/:id/tags` accepts `{ "tagIds": [...] }`, returns HTTP 204, and rejects an unavailable note or tag with HTTP 404 before changing assignments. It locks the note and validates the requested tags in the same transaction as the replacement. Tag changes leave the note’s content revision and timestamps intact.
+
+Tag names preserve the trimmed display spelling. The uniqueness key uses NFC normalization and lowercase and is scoped to the owner. Tag creation and rename return HTTP 409 with `TAG_NAME_IN_USE` on a duplicate.
+
 **Example** `POST /api/v1/ask`:
 
 ```json

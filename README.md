@@ -1,6 +1,6 @@
 # Personal Knowledge Hub
 
-Personal Knowledge Hub is a private notes project. The current API provides account registration and browser sessions backed by PostgreSQL.
+Personal Knowledge Hub is a private notes project. The current API provides account registration, browser sessions, and notes and tags CRUD backed by PostgreSQL.
 
 ## Local setup
 
@@ -27,7 +27,7 @@ pnpm test:integration
 pnpm build
 ```
 
-The integration smoke test exercises pgvector with synthetic vectors and rolls back its changes. It uses the Compose service by default. Set standard PostgreSQL environment variables including `PGHOST` to use a separate database with `psql` installed. The relational and auth integration tests each create and drop a temporary database, so the test role needs permission to create databases.
+The integration smoke test exercises pgvector with synthetic vectors and rolls back its changes. It uses the Compose service by default. Set standard PostgreSQL environment variables including `PGHOST` to use a separate database with `psql` installed. The relational, auth, and notes integration tests each create and drop a temporary database, so the test role needs permission to create databases.
 
 ## Browser authentication
 
@@ -36,6 +36,21 @@ The API serves its generated OpenAPI JSON at `/api/v1/openapi.json`. Registratio
 Every auth POST requires an exact allowlisted browser `Origin`. Local defaults allow Vite development and preview on ports 5173 and 4173 on `localhost` and `127.0.0.1`. For production, set `NODE_ENV=production` and `WEB_ORIGINS` to a comma-separated list of exact HTTPS origins, with no paths or trailing slashes. Serve the web app and API on the same HTTPS origin where possible. If they use different origins, deploy them on the same site so the host-only, `SameSite=Lax` session cookie works. HTTPS deployments use a `Secure`, `HttpOnly` cookie with the `__Host-` prefix.
 
 Registration and login share a limit of ten attempts per minute per direct client IP per API process. Requests forwarded by a reverse proxy share its IP quota. Keep the API on loopback behind the proxy. Expired sessions stop authenticating immediately. Operators can periodically remove expired rows with `DELETE FROM sessions WHERE expires_at <= now()`.
+
+## Notes and tags API
+
+Use the session cookie for all note requests. Send an allowlisted `Origin` and the session's `X-CSRF-Token` on writes.
+
+- `POST /api/v1/notes` creates a note from a JSON `title` and optional `body`.
+- `GET /api/v1/notes` lists the signed-in user's notes by newest update first, with UUID ascending as the tie-breaker. It accepts `limit` (default 20, maximum 100) and `offset` (default 0). Use the returned `nextOffset` for the next page. A null value marks the final page. Add `tagId` to filter before pagination. An unknown, deleted, or other account’s tag returns an empty page. Edits and deletes between requests can shift offsets.
+- `GET /api/v1/notes/:id` returns a note. `PATCH` accepts one or both content fields, and `DELETE` returns HTTP 204. Missing notes and notes owned by another account return HTTP 404.
+
+Titles must contain a non-whitespace character and can be up to 200 characters. Plain-text bodies can be up to 5,000 characters and default to empty. Content changes increment `contentRevision` and advance `updatedAt`. Submitting identical content preserves both fields. `indexingStatus: "pending"` means the note has yet to be indexed. Note and tag CRUD run without Ollama or an indexing worker.
+
+- `GET /api/v1/tags` lists the signed-in user's tags with `id`, `name`, and `createdAt`.
+- `POST /api/v1/tags` creates a tag and `PATCH /api/v1/tags/:id` renames it. Both accept a JSON `name` of 1–100 characters that must contain a non-whitespace character. Names retain their trimmed display spelling. Uniqueness uses NFC normalization and lowercase per account. Duplicates return HTTP 409 with `TAG_NAME_IN_USE`.
+- `DELETE /api/v1/tags/:id` removes the tag and its assignments and returns HTTP 204. Associated notes retain their content.
+- `PUT /api/v1/notes/:id/tags` replaces the note's full assignment set with a JSON `tagIds` array of distinct UUIDs and returns HTTP 204. An empty array clears the set. If any requested tag or the note is unavailable to the signed-in user, the request returns HTTP 404 and existing assignments stay intact. Note responses include their assigned `tagIds`. Tag changes leave note revisions and timestamps intact.
 
 ## Database migrations
 

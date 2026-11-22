@@ -25,6 +25,6 @@ import { AUTH_DB, AuthService } from './service.js';
       },
     },
   ],
-  exports: [SessionGuard],
+  exports: [SessionGuard, AuthService, BROWSER_POLICY, AUTH_DB],
 })
 export class AuthModule {}
