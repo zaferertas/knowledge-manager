@@ -60,13 +60,15 @@ Work one milestone or coherent sub-step at a time. A milestone is complete only 
 
 **Goal:** Requests identify the correct account securely.
 
-- [ ] Add registration/login/logout/`/auth/me`, Argon2id, opaque revocable hashed-at-rest sessions and expiry.
-- [ ] Implement web cookie/Origin/CSRF/CORS policy, request principal, owner-aware guards and rate limits.
-- [ ] Document browser deployment origins and error contracts through OpenAPI.
+- [x] Add registration/login/logout/`/auth/me`, Argon2id, opaque revocable hashed-at-rest sessions and expiry.
+- [x] Implement web cookie/Origin/CSRF/CORS policy, request principal, owner-aware guards and rate limits.
+- [x] Document browser deployment origins and error contracts through OpenAPI.
 
 **Tests:** Login/logout/expiry, invalid login, cookie flags, CSRF rejection, protected routes, two-user isolation.
 
 **Exit:** Auth works independently of AI; unauthorized and cross-user requests fail safely.
+
+**Verification:** `node scripts/verify.mjs ci` passed locally against PostgreSQL 17 with pgvector. The auth integration test verified registration, login failures, cookie flags, session hashes, expiry and revocation, rejected Origins and CSRF tokens, credential rate limiting, two-account isolation, and the generated OpenAPI contract. The [README](../README.md#browser-authentication) documents deployment configuration and the browser session flow.
 
 ### Milestone 3 — Notes and tags REST API (CRUD first)
 

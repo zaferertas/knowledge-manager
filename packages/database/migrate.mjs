@@ -18,6 +18,7 @@ export async function seedDatabase(connection) {
 
 if (import.meta.main) {
   const connection = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
     database: process.env.PGDATABASE ?? 'knowledge_hub',
     user: process.env.PGUSER ?? 'knowledge_hub',
     port: Number(process.env.PGPORT ?? process.env.POSTGRES_PORT ?? 5432),
