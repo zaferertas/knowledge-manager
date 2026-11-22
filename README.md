@@ -1,6 +1,6 @@
 # Personal Knowledge Hub
 
-Personal Knowledge Hub is a private notes project. The current API provides account registration, browser sessions, and notes and tags CRUD backed by PostgreSQL.
+Personal Knowledge Hub is a private notes project. Register or sign in from the web app to create and edit plain-text notes, manage tags, and filter your notes by tag. The app stores notes in PostgreSQL and shows their creation and update times. Notes display **Not yet indexed** during this milestone. The browser workflow requires PostgreSQL and runs with Ollama offline.
 
 ## Local setup
 
@@ -28,6 +28,17 @@ pnpm build
 ```
 
 The integration smoke test exercises pgvector with synthetic vectors and rolls back its changes. It uses the Compose service by default. Set standard PostgreSQL environment variables including `PGHOST` to use a separate database with `psql` installed. The relational, auth, and notes integration tests each create and drop a temporary database, so the test role needs permission to create databases.
+
+## Browser tests
+
+With PostgreSQL running, install Chromium and run the browser suite from the repository root.
+
+```sh
+pnpm --filter @knowledge-hub/web exec playwright install chromium
+pnpm test:e2e
+```
+
+The suite starts its own API on port 3104 and web server on port 4173, and creates and drops a temporary database. Keep both ports free and use a PostgreSQL test role with permission to create databases. On a host where Playwright cannot install Chromium, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to a compatible Chromium executable.
 
 ## Browser authentication
 
@@ -72,6 +83,6 @@ pnpm --filter @knowledge-hub/database db:seed
 
 Rerunning the seed preserves existing fixture rows and creates no duplicates. The fixture account has a disabled password placeholder and no session.
 
-Stop the development database with `docker compose --env-file .env -f infra/compose.yaml down`. The volume retains development data. Docker and model downloads are independent. Milestone 0 requires no AI runtime.
+Stop the development database with `docker compose --env-file .env -f infra/compose.yaml down`. The volume retains development data. Docker and model downloads are independent. Milestones 0–4 require no AI runtime.
 
 See the [implementation plan](docs/IMPLEMENTATION_PLAN.md) and [guardrail setup](docs/HOOKS.md) for release order and CI.

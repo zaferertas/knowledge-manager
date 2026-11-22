@@ -41,3 +41,7 @@ jobs:
         run: node scripts/guardrails.mjs ci
       - name: Verify workspace
         run: node scripts/verify.mjs ci
+      - name: Install Chromium for browser tests
+        run: pnpm --filter @knowledge-hub/web exec playwright install --with-deps chromium
+      - name: Test browser CRUD
+        run: pnpm test:e2e

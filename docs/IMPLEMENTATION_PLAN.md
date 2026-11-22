@@ -89,15 +89,17 @@ Work one milestone or coherent sub-step at a time. A milestone is complete only 
 
 **Goal:** A user can register and **create, read, update, delete and organize notes in the browser** before any semantic-search implementation.
 
-- [ ] Build typed API client, CSRF-aware cookies and session-expiry behavior.
-- [ ] Build auth screens, note list/detail/editor/deletion, timestamps, empty/validation/network states and tags CRUD/assignment/filter.
-- [ ] Show indexing as **not yet available / pending** until Milestone 5 supplies the worker; do not show fake progress or an Ask control that does nothing.
-- [ ] Add accessible, keyboard-friendly, responsive layout and web UI tests for full CRUD.
-- [ ] Confirm notes remain editable when Ollama is absent.
+- [x] Build typed API client, CSRF-aware cookies and session-expiry behavior.
+- [x] Build auth screens, note list/detail/editor/deletion, timestamps, empty/validation/network states and tags CRUD/assignment/filter.
+- [x] Show indexing as **not yet available / pending** until Milestone 5 supplies the worker; do not show fake progress or an Ask control that does nothing.
+- [x] Add accessible, keyboard-friendly, responsive layout and web UI tests for full CRUD.
+- [x] Confirm notes remain editable when Ollama is absent.
 
 **Tests:** Browser E2E register → create → read → edit → tag/filter → delete → log out; two-user access denial in API suite; Ollama-off smoke.
 
 **Exit (mandatory before AI work):** Real end-to-end **web + backend note/tag CRUD** is demoable and tested, with no vector-search or model dependence.
+
+**Verification:** `node scripts/verify.mjs ci` passed with real PostgreSQL and pgvector, including two-account API access denial and database-backed session expiry. `pnpm test:e2e` passed locally using the installed Chromium-based Opera executable. The test covered registration, session restoration, note creation, reading, editing, tag management and filtering, deletion, sign-out, and session loss. It also checked keyboard entry to the editor, a mobile-width layout, validation, and recovery from an interrupted save. Local Ollama was offline during verification. Hosted CI is configured to run the same test using Playwright Chromium.
 
 ## Phase B — AI as an additive capability
 

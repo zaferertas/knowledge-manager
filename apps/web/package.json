@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:e2e": "playwright test",
     "dev": "vite --strictPort",
     "typecheck": "tsc --noEmit",
     "build": "vite build"
@@ -12,6 +13,7 @@
     "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "typescript": "6.0.3",
