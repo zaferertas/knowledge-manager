@@ -22,6 +22,9 @@ test('real pre-commit blocks private env, premature mobile, and rewrite of migra
     for (const item of ['AGENTS.md', 'README.md', '.gitignore', 'docs', 'scripts', '.githooks']) {
       fs.cpSync(path.join(ROOT, item), path.join(temp, item), { recursive: true });
     }
+    fs.writeFileSync(path.join(temp, 'docs/releases/web-mvp.json'), JSON.stringify({
+      milestone: 8, status: 'awaiting_review',
+    }));
     mustGit(temp, 'init', '-q');
     mustGit(temp, 'config', 'user.name', 'Hook Test');
     mustGit(temp, 'config', 'user.email', 'test@example.com');
@@ -43,7 +46,7 @@ test('real pre-commit blocks private env, premature mobile, and rewrite of migra
     mustGit(temp, 'add', '-A');
     result = git(temp, 'commit', '-qm', 'early mobile');
     assert.notEqual(result.code, 0);
-    assert.match(result.output, /Native mobile code requires/);
+    assert.match(result.output, /missing release approval or evidence fields/);
     mustGit(temp, 'reset', '-q', 'HEAD', '--', 'apps/mobile/shared/src/Models.kt');
     fs.unlinkSync(mobile);
 

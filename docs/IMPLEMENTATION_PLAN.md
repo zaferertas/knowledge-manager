@@ -156,15 +156,17 @@ Work one milestone or coherent sub-step at a time. A milestone is complete only 
 **Goal:** Establish a stable, tested and documented API/web baseline *before any native-client implementation*.
 
 - [ ] CI runs install, build, lint, typecheck, unit, real PG integration, API E2E and web E2E; fake AI default, live Ollama optional.
-- [ ] Verify OpenAPI schema, auth cookie/CSRF integration, migrations, worker races, cross-user denial and CRUD-to-RAG regression.
-- [ ] Build synthetic RAG evaluation set (roughly 20–30 questions), record retrieval/source validity, abstention/groundedness and latency evidence; document hardware limitations.
-- [ ] Complete README (environment, migrations, model setup, troubleshooting), health/observability, redacted logs, security/licensing review and fresh-clone smoke.
-- [ ] Freeze/version the `/api/v1` contract for mobile consumption; capture outstanding design decisions as ADRs, especially native-session transport.
+- [x] Verify OpenAPI schema, auth cookie/CSRF integration, migrations, worker races, cross-user denial and CRUD-to-RAG regression.
+- [x] Build synthetic RAG evaluation set (roughly 20–30 questions), record retrieval/source validity, abstention/groundedness and latency evidence; document hardware limitations.
+- [x] Complete README (environment, migrations, model setup, troubleshooting), health/observability, redacted logs, security/licensing review and fresh-clone smoke.
+- [x] Freeze/version the `/api/v1` contract for mobile consumption; capture outstanding design decisions as ADRs, especially native-session transport.
 - [ ] Record an explicit **human-reviewed web MVP release decision** and remaining limitations in `docs/releases/web-mvp.json` (approval, CI run, web CRUD E2E, API security and OpenAPI evidence); this file is a required CI/Git gate before adding real `apps/mobile/` code. Only then schedule Milestones 9–12.
 
 **Tests:** Full CI + clean-room run + contract/evaluation evidence, independently repeatable by a reviewer.
 
 **Exit (hard mobile gate):** Stable backend **and** usable, release-ready web app are both verified; API is documented, security-critical tests pass, and the release decision is recorded.
+
+**Verification:** The [release review](releases/web-mvp.md) records the local clean-source verification, browser runs, and remaining limitations. The [approval record](releases/web-mvp.json) awaits a hosted Guardrails run for this candidate and human sign-off.
 
 ## Phase C — Native clients, only after Phase B release
 

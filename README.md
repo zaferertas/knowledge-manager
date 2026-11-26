@@ -1,6 +1,6 @@
 # Personal Knowledge Hub
 
-Personal Knowledge Hub is a private notes project. Register or sign in from the web app to create and edit plain-text notes, manage tags, and filter your notes by tag. The app stores notes in PostgreSQL and shows their creation and update times. Notes display their current indexing status. The browser workflow requires PostgreSQL and runs with Ollama offline.
+Personal Knowledge Hub is a private notes app. Create and organize plain-text notes, then ask one-shot questions and follow citations to the source notes. Notes and tags use PostgreSQL and work with Ollama offline. Indexing and answers use a local Ollama runtime.
 
 ## Local setup
 
@@ -20,6 +20,7 @@ Open the Vite URL printed by `pnpm dev` (default `http://localhost:5173`). Vite 
 
 ```sh
 curl --fail http://127.0.0.1:3000/api/v1/health
+curl --fail http://127.0.0.1:3000/api/v1/health/ready
 pnpm lint
 pnpm typecheck
 pnpm test
@@ -43,6 +44,8 @@ The suite starts its own API on port 3104, web server on port 4173, and indexing
 ## Browser authentication
 
 The API serves its generated OpenAPI JSON at `/api/v1/openapi.json`. Registration and login accept JSON with `email` and `password`, start a seven-day session, and return the account and a session-bound CSRF token. Call `GET /api/v1/auth/me` to recover that token after a page reload. Send it as `X-CSRF-Token` on authenticated writes. Logout revokes the current session and clears its cookie. Browser requests across allowed origins must use `credentials: 'include'`.
+
+Client integrations should use the checked-in [HTTPS OpenAPI v1 contract](docs/api/v1.openapi.json). Loopback development uses a different cookie name. For an intentional compatible contract update, run `pnpm openapi:export`, review the diff alongside API behavior, and run the integration tests. Breaking changes require an approved versioning decision.
 
 Every auth POST requires an exact allowlisted browser `Origin`. Local defaults allow Vite development and preview on ports 5173 and 4173 on `localhost` and `127.0.0.1`. For production, set `NODE_ENV=production` and `WEB_ORIGINS` to a comma-separated list of exact HTTPS origins, with no paths or trailing slashes. Serve the web app and API on the same HTTPS origin where possible. If they use different origins, deploy them on the same site so the host-only, `SameSite=Lax` session cookie works. HTTPS deployments use a `Secure`, `HttpOnly` cookie with the `__Host-` prefix.
 
@@ -120,7 +123,7 @@ contents so existing notes are reindexed.
 
 ## Ask API
 
-Start Ollama and pull the configured generation model alongside the embedding
+Install and start Ollama, then pull the configured generation model alongside the embedding
 model.
 
 ```sh
@@ -160,3 +163,18 @@ models before running it.
 ```sh
 RUN_LIVE_ASK=1 pnpm --filter @knowledge-hub/api test:integration
 ```
+
+See the [evaluation report](docs/evaluation/web-mvp.md) for the observed answer coverage, latency, and CPU limitations. The CRUD and browser test suites use no downloaded models.
+
+## Environment and troubleshooting
+
+The API, worker, and migration CLI read the root `.env`. See [the example](.env.example) for defaults. Configure PostgreSQL with `DATABASE_URL` or standard `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD` settings. `POSTGRES_PORT` controls the published development database port and serves as the API/worker port fallback when `PGPORT` is unset. Set `API_PORT` for a different loopback API port and use the same value for Vite's proxy.
+
+- `GET /api/v1/health` checks API liveness. `GET /api/v1/health/ready` checks PostgreSQL connectivity and access to the note, embedding, and Graphile queue relations. On HTTP 503, check database settings and apply migrations. Both probes work with Ollama or the worker offline.
+- If notes stay pending, check the worker process and its attempt logs, PostgreSQL access, and the configured embedding model. Inspect notes by indexing status and aggregate queue age with the operator's database account. `SELECT indexing_status, count(*) FROM notes GROUP BY indexing_status` shows the outstanding and failed indexing counts without showing note content.
+- For `AI_UNAVAILABLE`, check `curl --fail http://127.0.0.1:11434/api/tags` against the configured Ollama host, then compare the installed names with `EMBEDDING_MODEL` and `GENERATION_MODEL`. For repeat timeouts, check runtime memory and CPU/GPU utilization. CPU evaluation needed up to 79.6 seconds for generation, so the default 45-second timeout can be too short on similar hardware.
+- For a rejected browser write, match `WEB_ORIGINS` to the browser's exact origin and ensure the request uses the current session and CSRF token. If the API cannot start, check the port and the configured origins and model settings.
+
+API request logs record a generated request ID, status, elapsed time, and an error code when available. Match that ID to the response's `X-Request-Id`. Worker attempt logs record the attempt number, elapsed time, and completion or failure. A completed attempt may have skipped superseded work. These logs omit request paths, bodies, headers, credentials, and note identifiers. Configure the frontend proxy and infrastructure logs to preserve the same privacy boundary.
+
+For an independent release check, follow the local setup from a fresh checkout, then run the [Milestone 8 verification commands](docs/releases/web-mvp.md).

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { test } from 'node:test';
+import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { migrateDatabase } from '../../../packages/database/migrate.mjs';
 import { createApp } from '../dist/app.js';
@@ -23,7 +24,6 @@ test('browser authentication persists isolated, expiring, revocable sessions in 
   let app;
   try {
     await admin.query(`CREATE DATABASE "${database}"`);
-    await migrateDatabase(db);
     process.env.PGDATABASE = database;
     process.env.PGUSER = config.user;
     process.env.PGPASSWORD = config.password;
@@ -36,6 +36,15 @@ test('browser authentication persists isolated, expiring, revocable sessions in 
 
     const request = (path, { method = 'GET', headers, body } = {}) =>
       fetch(`${base}/api/v1/${path}`, { method, headers, body });
+    assert.equal((await request('health')).status, 200);
+    const unready = await request('health/ready');
+    assert.equal(unready.status, 503);
+    assert.match(unready.headers.get('x-request-id'), /^[0-9a-f-]{36}$/);
+    assert.equal((await unready.json()).code, 'DATABASE_UNAVAILABLE');
+    await migrateDatabase(db);
+    const ready = await request('health/ready');
+    assert.equal(ready.status, 200);
+    assert.deepEqual(await ready.json(), { status: 'ready' });
     const credentials = { email: 'Owner@Example.Test ', password: 'synthetic password fixture' };
     const post = (path, body = credentials, source = origin) => request(`auth/${path}`, {
       method: 'POST',
@@ -145,6 +154,8 @@ test('browser authentication persists isolated, expiring, revocable sessions in 
     const openapi = await request('openapi.json');
     assert.equal(openapi.status, 200);
     const spec = await openapi.json();
+    const snapshot = new URL('../../../docs/api/v1.openapi.json', import.meta.url);
+    assert.deepEqual(spec, JSON.parse(await readFile(snapshot, 'utf8')));
     assert.equal(spec.components.securitySchemes.cookie.name, '__Host-kh_session');
     assert.deepEqual(spec.paths['/api/v1/auth/me'].get.security, [{ cookie: [] }]);
     assert.ok(spec.paths['/api/v1/auth/login'].post.responses['429']);

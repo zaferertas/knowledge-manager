@@ -18,7 +18,7 @@ The static checker is `scripts/guardrails.mjs`; its unit tests are `scripts/guar
 
 ### Mobile release approval record
 
-After completing the Milestone 8 backend+web release checks, a human reviewer adds `docs/releases/web-mvp.json`. Required format (replace every sample value with **real verification evidence**):
+After completing the Milestone 8 backend+web release checks, a human reviewer records their approval in `docs/releases/web-mvp.json`. A pending record keeps the mobile gate closed. Required approval format (replace every sample value with **real verification evidence**):
 
 ```json
 {
