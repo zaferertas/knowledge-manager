@@ -37,7 +37,7 @@ function AuthForm({ expired, onSession }: { expired: boolean; onSession: (sessio
   const registering = mode === 'register';
   return (
     <main className="auth">
-      <h1>Knowledge Hub</h1>
+      <h1>Personal Knowledge Hub</h1>
       {expired && <p role="status">Your session has ended. Sign in again to continue.</p>}
       <CredentialsForm key={mode} mode={mode} onSession={onSession} switchMode={() => setMode(registering ? 'login' : 'register')} />
     </main>

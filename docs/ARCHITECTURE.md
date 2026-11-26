@@ -75,6 +75,7 @@ personal-knowledge-hub/
 ├── apps/
 │   ├── api/
 │   │   └── src/
+│   │       ├── indexing/          # AI port, Ollama adapter and worker entry point
 │   │       ├── modules/
 │   │       │   ├── auth/
 │   │       │   ├── users/
@@ -85,10 +86,6 @@ personal-knowledge-hub/
 │   │       │   └── ai/
 │   │       ├── common/
 │   │       ├── config/
-│   │       └── main.ts
-│   ├── worker/
-│   │   └── src/
-│   │       ├── tasks/index-note.ts
 │   │       └── main.ts
 │   ├── web/
 │   │   └── src/
@@ -156,7 +153,7 @@ Use UUID identifiers (or another documented, consistently used collision-resista
 |---|---|---|
 | `users` | `id`, `email`, `password_hash`, `created_at`, `updated_at` | Email unique after canonical normalization; Argon2id password hash |
 | `sessions` | `id`, `user_id`, `token_hash`, `created_at`, `expires_at`, `revoked_at` | Token hash unique; FK to users; expire/revoke on logout |
-| `notes` | `id`, `user_id`, `title`, `body`, `content_revision`, `indexing_status`, `created_at`, `updated_at` | FK to users; revision starts at 1, increases only for title/body edits; check status/revision validity |
+| `notes` | `id`, `user_id`, `title`, `body`, `content_revision`, `indexing_status`, `indexing_model`, `indexing_request`, `created_at`, `updated_at` | FK to users; revision starts at 1, increases only for title/body edits; check status/revision validity |
 | `tags` | `id`, `user_id`, `name`, `normalized_name`, `created_at` | Unique (`user_id`, `normalized_name`) |
 | `note_tags` | `user_id`, `note_id`, `tag_id` | Composite PK/unique; enforce both note/tag ownership, preferably with composite FKs including `user_id` |
 | `note_embeddings` | `note_id`, `content_revision`, `model_id`, `embedding`, `created_at` | One current embedding per note; `note_id` PK and cascading FK; `vector(768)` for the initial `nomic-embed-text` candidate |
@@ -186,7 +183,7 @@ A typical retrieval query joins `note_embeddings` to `notes`, filters `notes.use
 
 ### Pre-indexing behavior (Milestones 3–4)
 
-Note and tag CRUD is complete *before* a working job handler and model exist. Note saves remain durable, bump content revision when content changes, and return a truthful **not yet indexed / pending** state. Do **not** pretend a Graphile job was enqueued before the transactional integration is wired. When Milestone 5 starts, backfill all existing notes, then enable atomic write+enqueue for new edits. The final behavior below applies once indexing is enabled.
+Note and tag CRUD is complete *before* a working job handler and model exist. Note saves remain durable, bump content revision when content changes, and return a truthful **not yet indexed / pending** state. Do **not** pretend a Graphile job was enqueued before the transactional integration is wired. The indexing worker backfills existing notes on startup. New writes enqueue atomically even while the worker is offline. The final behavior below applies once indexing is enabled.
 
 ```mermaid
 sequenceDiagram
@@ -207,14 +204,14 @@ sequenceDiagram
 ```
 
 1. Within **one PostgreSQL transaction**, create/update the note and call Graphile Worker's `graphile_worker.add_job(...)` SQL function; do not save note and enqueue on separate uncoordinated connections.
-2. Enqueue only on title/body changes, not on tag-only edits. Avoid duplicate work where practical, but assume jobs are delivered **at least once**.
+2. On note updates, enqueue only when the title or body changes. Backfill and explicit reindex requests can also enqueue work. Avoid duplicate work where practical, but assume jobs are delivered **at least once**.
 3. Worker loads fresh note state and exits cleanly if deleted or revision superseded.
 4. Call Ollama outside a database transaction; never hold a row lock while waiting for model inference.
-5. On completion, perform a conditional database transaction that upserts embedding **only when note revision and model ID match the job**, and sets status `ready` atomically.
+5. On completion, perform a conditional database transaction that upserts embedding **only when the owner, note revision, model ID and indexing request ID match the job**, and sets status `ready` atomically.
 6. On transient model/DB failure, let Graphile Worker retry with bounded attempts/backoff. On terminal failure, mark the **matching revision** failed (without changing a newer revision's status) and provide an explicit reindex/recovery path.
 7. Ensure old embeddings never qualify as current evidence; deletion must cascade embeddings. Reindex all notes if the embedding model/dimension changes.
 
-Do not publish sensitive note text in queue payloads or verbose logs. Prefer `{ noteId, userId, contentRevision, modelId }` and read note content in the worker.
+Do not publish sensitive note text in queue payloads or verbose logs. Use `{ noteId, userId, contentRevision, modelId, requestId }` and read note content in the worker.
 
 ## 8. Question answering (RAG) design
 
@@ -255,6 +252,7 @@ Use prefix `/api/v1`, JSON DTOs, standardized error codes, input validation, a d
 | GET | `/notes/:id` | Read owned note |
 | PATCH | `/notes/:id` | Edit owned note; enqueue only if content changed |
 | DELETE | `/notes/:id` | Delete owned note |
+| POST | `/notes/:id/reindex` | Queue indexing for an owned note without editing it |
 | GET | `/tags` | Owner's tags |
 | POST | `/tags` | Create tag |
 | PATCH | `/tags/:id` | Rename owned tag |

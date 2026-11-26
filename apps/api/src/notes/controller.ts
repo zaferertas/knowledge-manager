@@ -85,6 +85,17 @@ export class NotesController {
     return this.tags.replaceForNote(user.id, noteId(id), replacementTagIds(body));
   }
 
+  @Post(':id/reindex')
+  @ApiParam({ name: 'id', schema: { type: 'string', format: 'uuid' } })
+  @HttpCode(204)
+  @writeRoute()
+  @ApiResponse({ status: 204, description: 'Indexing queued or already pending.' })
+  @ApiResponse({ status: 404, type: ErrorResponse, description: 'NOT_FOUND' })
+  @ApiResponse({ status: 422, type: ErrorResponse, description: 'INVALID_NOTE_ID' })
+  reindex(@CurrentSession() { user }: { user: Principal }, @Param('id') id: string) {
+    return this.notes.reindex(user.id, noteId(id));
+  }
+
   @Delete(':id')
   @ApiParam({ name: 'id', schema: { type: 'string', format: 'uuid' } })
   @HttpCode(204)

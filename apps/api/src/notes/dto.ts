@@ -31,7 +31,7 @@ export class Note extends CreateNote {
   @ApiProperty({ type: 'integer', minimum: 1 })
   contentRevision!: number;
 
-  @ApiProperty({ enum: ['pending', 'ready', 'failed'], description: 'Pending means not yet indexed. This API does not queue indexing.' })
+  @ApiProperty({ enum: ['pending', 'ready', 'failed'], description: 'Indexing state for the current note content.' })
   indexingStatus!: 'pending' | 'ready' | 'failed';
 
   @ApiProperty({ type: 'string', format: 'date-time' })

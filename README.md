@@ -55,6 +55,7 @@ Use the session cookie for all note requests. Send an allowlisted `Origin` and t
 - `POST /api/v1/notes` creates a note from a JSON `title` and optional `body`.
 - `GET /api/v1/notes` lists the signed-in user's notes by newest update first, with UUID ascending as the tie-breaker. It accepts `limit` (default 20, maximum 100) and `offset` (default 0). Use the returned `nextOffset` for the next page. A null value marks the final page. Add `tagId` to filter before pagination. An unknown, deleted, or other account’s tag returns an empty page. Edits and deletes between requests can shift offsets.
 - `GET /api/v1/notes/:id` returns a note. `PATCH` accepts one or both content fields, and `DELETE` returns HTTP 204. Missing notes and notes owned by another account return HTTP 404.
+- `POST /api/v1/notes/:id/reindex` queues indexing for an owned note and returns HTTP 204. Pending work for the current model is reused.
 
 Titles must contain a non-whitespace character and can be up to 200 characters. Plain-text bodies can be up to 5,000 characters and default to empty. Content changes increment `contentRevision` and advance `updatedAt`. Submitting identical content preserves both fields. `indexingStatus: "pending"` means the note has yet to be indexed. Note and tag CRUD run without Ollama or an indexing worker.
 
@@ -86,3 +87,33 @@ Rerunning the seed preserves existing fixture rows and creates no duplicates. Th
 Stop the development database with `docker compose --env-file .env -f infra/compose.yaml down`. The volume retains development data. Docker and model downloads are independent. Milestones 0–4 require no AI runtime.
 
 See the [implementation plan](docs/IMPLEMENTATION_PLAN.md) and [guardrail setup](docs/HOOKS.md) for release order and CI.
+
+## Background note indexing
+
+After migrating the database, start a separate terminal for the indexing worker.
+
+```sh
+ollama pull nomic-embed-text
+pnpm --filter @knowledge-hub/api worker
+```
+
+Start Ollama separately if it is not running. The notes API and web editor work
+while Ollama or the worker is offline. The API queues work in PostgreSQL, and the
+worker picks it up when it returns. Worker startup also queues notes saved
+before indexing was introduced. Open a note and select **Refresh indexing
+status** to see the latest state. A failed note offers **Retry indexing** and an
+indexed note offers **Reindex note**. These actions preserve the note's content,
+revision and modification timestamp.
+
+The worker defaults to `OLLAMA_URL=http://127.0.0.1:11434`. Configure the same
+`EMBEDDING_MODEL` for the API and worker. The adapter uses Nomic's document and
+query prefixes and the database requires 768 dimensions. Ollama rejects input
+that exceeds the model token limit because truncation is disabled. A note that
+exceeds that limit stays saved and eventually shows **Indexing failed**. Shorten
+the note to queue its revised content.
+
+To switch to a compatible 768-dimensional model or tag, stop the API and
+worker, configure both with the new model ID, and start the worker before
+restarting the API. Worker startup queues a new indexing request for each note
+with a different recorded model ID. Use a distinct model ID when changing model
+contents so existing notes are reindexed.

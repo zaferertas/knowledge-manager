@@ -28,7 +28,7 @@ function Workspace({ session, onEnd }: { session: Session; onEnd: (expired: bool
   return <>
     <header className="topbar">
       <div className="topbar-content">
-        <h1>Knowledge Hub</h1>
+        <h1>Personal Knowledge Hub</h1>
         <div className="account">
           <span>{session.user.email}</span>
           <button disabled={logout.busy} onClick={() => void logout.run(async () => {

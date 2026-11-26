@@ -107,15 +107,17 @@ Work one milestone or coherent sub-step at a time. A milestone is complete only 
 
 **Goal:** Index persisted notes in the background without changing CRUD behavior.
 
-- [ ] Implement `EmbeddingProvider` port, Ollama adapter, model/dimension configuration and document/query input formatting.
-- [ ] Transactionally enqueue `index-note` through Graphile Worker SQL with note creation/content edits; include a migration/backfill path for notes created in Phase A.
-- [ ] Make handler idempotent; never keep a DB transaction open over model inference; verify current revision/model before publishing vectors or statuses.
-- [ ] Handle failed/retried/stale/deleted jobs, AI outage, terminal failures and explicit reindex/retry UX.
-- [ ] Keep user-owned note data available and changes durable when Ollama is down.
+- [x] Implement `EmbeddingProvider` port, Ollama adapter, model/dimension configuration and document/query input formatting.
+- [x] Transactionally enqueue `index-note` through Graphile Worker SQL with note creation/content edits; include a migration/backfill path for notes created in Phase A.
+- [x] Make handler idempotent; never keep a DB transaction open over model inference; verify current revision/model before publishing vectors or statuses.
+- [x] Handle failed/retried/stale/deleted jobs, AI outage, terminal failures and explicit reindex/retry UX.
+- [x] Keep user-owned note data available and changes durable when Ollama is down.
 
 **Tests:** Real PG transactional enqueue, duplicate/stale jobs, deletion race, outage/retry/recovery, model dimension mismatch and Phase-A backfill.
 
 **Exit:** Only current owner-approved note revisions are indexed; CRUD remains available on AI failure. No query-answering feature yet.
+
+**Verification:** `node scripts/verify.mjs ci` passed locally against PostgreSQL and pgvector. The suite verified atomic write and enqueue, legacy backfill, unchanged and tag-only writes, real Graphile retry and recovery with a fake provider, terminal failure, dimension mismatch, duplicate delivery, stale work, deletion during inference, and the owner-scoped retry API. `pnpm test:e2e` passed using Opera’s Chromium executable with Ollama offline. The browser test exercised CRUD and the refresh and retry controls with a simulated failed status. Live Ollama inference was not tested.
 
 ### Milestone 6 — Internal retrieval and one-shot RAG API
 

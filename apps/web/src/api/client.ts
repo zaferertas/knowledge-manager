@@ -56,6 +56,7 @@ export function createClient(session?: Session, onExpired?: () => void) {
     note: (id: string) => request<Note>(`/notes/${id}`),
     createNote: (content: NoteContent) => request<Note>('/notes', 'POST', content),
     updateNote: (id: string, content: NoteContent) => request<Note>(`/notes/${id}`, 'PATCH', content),
+    reindexNote: (id: string) => request<void>(`/notes/${id}/reindex`, 'POST'),
     deleteNote: (id: string) => request<void>(`/notes/${id}`, 'DELETE'),
     assignTags: (id: string, tagIds: string[]) => request<void>(`/notes/${id}/tags`, 'PUT', { tagIds }),
     tags: () => request<Tag[]>('/tags'),

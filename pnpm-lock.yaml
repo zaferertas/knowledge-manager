@@ -184,6 +184,9 @@ importers:
       '@nestjs/swagger':
         specifier: 12.1.2
         version: 12.1.2(@nestjs/common@12.3.3(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.3.3)(reflect-metadata@0.2.2)(typescript@6.0.3)
+      graphile-worker:
+        specifier: 0.18.0
+        version: 0.18.0(supports-color@7.2.0)(typescript@6.0.3)
       pg:
         specifier: 8.23.1
         version: 8.23.1
@@ -2467,7 +2470,7 @@ snapshots:
 
   '@types/interpret@1.1.4':
     dependencies:
-      '@types/node': 22.20.5
+      '@types/node': 24.19.2
 
   '@types/ms@2.1.0': {}
 

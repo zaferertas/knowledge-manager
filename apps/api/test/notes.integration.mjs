@@ -2,8 +2,12 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import pg from 'pg';
+import { runOnce } from 'graphile-worker';
 import { migrateDatabase } from '../../../packages/database/migrate.mjs';
 import { createApp } from '../dist/app.js';
+import { embeddingModel } from '../dist/indexing/config.js';
+import { backfillIndexing, reconcileFailedIndexing } from '../dist/indexing/queue.js';
+import { indexNoteTask } from '../dist/indexing/task.js';
 
 test('notes CRUD is validated, paginated and scoped to the signed-in owner', async (t) => {
   const database = `knowledge_hub_notes_${randomUUID().replaceAll('-', '')}`;
@@ -144,6 +148,9 @@ test('notes CRUD is validated, paginated and scoped to the signed-in owner', asy
     assert.equal(routes.patch.requestBody.content['application/json'].schema.$ref, '#/components/schemas/UpdateNote');
     assert.ok(routes.delete.responses['204']);
     assert.ok(spec.components.schemas.Note.required.includes('body'));
+    const reindex = spec.paths['/api/v1/notes/{id}/reindex'].post;
+    assert.deepEqual(reindex.security, [{ cookie: [] }]);
+    assert.ok(reindex.responses['204']);
 
     await t.test('tag CRUD, atomic assignments, and filtered pages', async () => {
       const tags = (path = '', ...args) => api(`/tags${path}`, ...args);
@@ -231,7 +238,131 @@ test('notes CRUD is validated, paginated and scoped to the signed-in owner', asy
     });
 
     const { rows: [queue] } = await db.query('SELECT count(*)::int AS count FROM graphile_worker.jobs');
-    assert.equal(queue.count, 0);
+    assert.equal(queue.count, 6);
+
+    await t.test('queue failures roll back creates and edits', async () => {
+      const path = `/${second.id}`;
+      const before = await expectStatus(request(path), 200);
+      await db.query('ALTER SCHEMA graphile_worker RENAME TO unavailable_worker');
+      try {
+        await expectError(request('', 'POST', { title: 'Rolled back' }), 500, 'INTERNAL_ERROR');
+        await expectError(request(path, 'PATCH', { title: 'Rolled back' }), 500, 'INTERNAL_ERROR');
+      } finally {
+        await db.query('ALTER SCHEMA unavailable_worker RENAME TO graphile_worker');
+      }
+      assert.deepEqual(await expectStatus(request(path), 200), before);
+      assert.equal((await db.query("SELECT id FROM notes WHERE title = 'Rolled back'")).rowCount, 0);
+    });
+
+    await t.test('backfill, Graphile execution, retries, stale work and deletion', async () => {
+      const modelId = embeddingModel();
+      const { rows: [legacy] } = await db.query(`
+        INSERT INTO notes (user_id, title, body) VALUES ($1, 'Legacy note', 'Synthetic body')
+        RETURNING id, user_id
+      `, [tag.user_id]);
+      const path = `/${legacy.id}`;
+      const read = () => expectStatus(request(path), 200);
+      async function payload() {
+        const { rows: [row] } = await db.query(`
+          SELECT user_id AS "userId", id AS "noteId", content_revision AS "contentRevision",
+            indexing_model AS "modelId", indexing_request AS "requestId"
+          FROM notes WHERE id = $1
+        `, [legacy.id]);
+        return row;
+      }
+      const vector = Array(768).fill(0.5);
+      let inference = async () => vector;
+      let calls = 0;
+      const provider = {
+        modelId, dimensions: 768,
+        async embedDocument(text) {
+          calls++;
+          return inference(text);
+        },
+      };
+      const task = indexNoteTask(db, provider);
+      const work = (job, attempts = 1) => task(job, { job: { attempts, max_attempts: 5 } });
+      await backfillIndexing(db, modelId);
+      const backfilled = await payload();
+      assert.ok(backfilled.requestId);
+      await backfillIndexing(db, modelId);
+      assert.deepEqual(await payload(), backfilled);
+      await expectError(request(`${path}/reindex`, 'POST', undefined, other), 404, 'NOT_FOUND');
+      await expectError(request(`${path}/reindex`, 'POST', undefined, { Cookie: owner.Cookie }), 403, 'CSRF_INVALID');
+
+      inference = async () => { throw new Error('Synthetic outage details'); };
+      await runOnce({ pgPool: db, taskList: { 'index-note': task } });
+      const { rows: [retry] } = await db.query('SELECT attempts, last_error FROM graphile_worker.jobs WHERE key = $1',
+        [`index-note:${backfilled.requestId}`]);
+      assert.deepEqual(retry, { attempts: 1, last_error: 'Note indexing failed.' });
+      assert.equal((await read()).indexingStatus, 'pending');
+
+      await db.query(`
+        SELECT graphile_worker.reschedule_jobs(ARRAY(SELECT id FROM graphile_worker.jobs WHERE key = $1),
+          run_at := clock_timestamp())
+      `, [`index-note:${backfilled.requestId}`]);
+      inference = async () => vector;
+      await runOnce({ pgPool: db, taskList: { 'index-note': task } });
+      assert.equal((await read()).indexingStatus, 'ready');
+
+      await expectStatus(request(`${path}/reindex`, 'POST'), 204);
+      const original = await payload();
+      inference = async () => [1, 2];
+      await assert.rejects(work(original, 5), /Note indexing failed/);
+      assert.equal((await read()).indexingStatus, 'failed');
+      const beforeRetry = await read();
+      await expectStatus(request(`${path}/reindex`, 'POST'), 204);
+      const requested = await payload();
+      assert.notEqual(requested.requestId, original.requestId);
+      await expectStatus(request(`${path}/reindex`, 'POST'), 204);
+      assert.deepEqual(await payload(), requested);
+      assert.deepEqual(await read(), { ...beforeRetry, indexingStatus: 'pending' });
+
+      inference = async (text) => {
+        assert.equal(text, 'Legacy note\n\nSynthetic body');
+        return vector;
+      };
+      await work(requested);
+      assert.equal((await read()).indexingStatus, 'ready');
+      const readyCalls = calls;
+      await work(requested);
+      await work(original, 5);
+      assert.equal(calls, readyCalls);
+
+      await expectStatus(request(`${path}/reindex`, 'POST'), 204);
+      inference = async () => {
+        await expectStatus(request(path, 'PATCH', { body: 'New revision' }), 200);
+        return vector;
+      };
+      await work(await payload());
+      const current = await read();
+      assert.equal(current.indexingStatus, 'pending');
+      assert.equal(current.contentRevision, 2);
+      const { rows: [embedding] } = await db.query('SELECT content_revision, model_id FROM note_embeddings WHERE note_id = $1', [legacy.id]);
+      assert.deepEqual(embedding, { content_revision: 1, model_id: modelId });
+
+      inference = async () => vector;
+      const previousModel = await payload();
+      await backfillIndexing(db, 'synthetic-model');
+      await work(previousModel);
+      assert.equal((await read()).indexingStatus, 'pending');
+      await assert.rejects(work(await payload()), /does not match/);
+      await backfillIndexing(db, modelId);
+
+      const exhausted = await payload();
+      await db.query(`
+        SELECT graphile_worker.permanently_fail_jobs(ARRAY(SELECT id FROM graphile_worker.jobs WHERE key = $1))
+      `, [`index-note:${exhausted.requestId}`]);
+      await reconcileFailedIndexing(db, modelId);
+      assert.equal((await read()).indexingStatus, 'failed');
+      await expectStatus(request(`${path}/reindex`, 'POST'), 204);
+      inference = async () => {
+        await expectStatus(request(path, 'DELETE'), 204);
+        return vector;
+      };
+      await work(await payload());
+      assert.equal((await db.query('SELECT 1 FROM note_embeddings WHERE note_id = $1', [legacy.id])).rowCount, 0);
+    });
     assert.deepEqual(poolErrors, []);
   } finally {
     await app?.close();

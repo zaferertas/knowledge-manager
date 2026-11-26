@@ -4,6 +4,12 @@ import { LoadStatus, useAction, useLoad } from './async';
 
 const dateTime = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
+const indexingLabel = {
+  pending: 'Indexing pending',
+  ready: 'Indexed',
+  failed: 'Indexing failed',
+};
+
 function Timestamp({ value }: { value: string }) {
   return <time dateTime={value}>{dateTime.format(new Date(value))}</time>;
 }
@@ -69,6 +75,7 @@ export function NotePane({ client, id, tags, tagsAvailable, onSaved, onClose, on
   const { result, retry } = useLoad(load);
   const deletion = useAction();
   const assignment = useAction();
+  const indexing = useAction();
 
   useEffect(() => { heading.current?.focus(); }, [editing, confirmDelete]);
 
@@ -88,7 +95,7 @@ export function NotePane({ client, id, tags, tagsAvailable, onSaved, onClose, on
       <div className="note-meta">
         <span>Created <Timestamp value={current.createdAt} /></span>
         <span>Updated <Timestamp value={current.updatedAt} /></span>
-        <span>Not yet indexed</span>
+        <span role="status">{indexingLabel[current.indexingStatus]}</span>
       </div>
       <p className="note-body">{current.body || 'This note has no body.'}</p>
       {confirmDelete ? <div>
@@ -103,10 +110,16 @@ export function NotePane({ client, id, tags, tagsAvailable, onSaved, onClose, on
         </div>
         {deletion.error && <p role="alert">{deletion.error}</p>}
       </div> : <div className="toolbar">
-        <button className="primary" disabled={assignment.busy} onClick={() => setEditing(true)}>Edit note</button>
-        <button className="danger" disabled={assignment.busy} onClick={() => setConfirmDelete(true)}>Delete note</button>
+        <button className="primary" disabled={assignment.busy || indexing.busy} onClick={() => setEditing(true)}>Edit note</button>
+        <button className="danger" disabled={assignment.busy || indexing.busy} onClick={() => setConfirmDelete(true)}>Delete note</button>
+        <button disabled={assignment.busy || indexing.busy} onClick={() => void indexing.run(async () => {
+          if (current.indexingStatus !== 'pending') await client.reindexNote(id);
+          setNote(await client.note(id));
+        })}>{current.indexingStatus === 'pending' ? 'Refresh indexing status'
+          : current.indexingStatus === 'failed' ? 'Retry indexing' : 'Reindex note'}</button>
       </div>}
-      {tagsAvailable && !confirmDelete && <Assignments note={current} tags={tags} action={assignment} onSave={async (tagIds) => {
+      {indexing.error && <p role="alert">{indexing.error}</p>}
+      {tagsAvailable && !confirmDelete && <Assignments note={current} tags={tags} action={assignment} disabled={indexing.busy} onSave={async (tagIds) => {
         await client.assignTags(id, tagIds);
         setNote((latest) => ({ ...(latest ?? current), tagIds }));
         onChanged();
@@ -138,8 +151,8 @@ function NoteEditor({ note, onSave, onCancel }: {
   </form>;
 }
 
-function Assignments({ note, tags, onSave, action }: {
-  note: Note; tags: Tag[]; onSave: (ids: string[]) => Promise<void>; action: ReturnType<typeof useAction>;
+function Assignments({ note, tags, onSave, action, disabled }: {
+  note: Note; tags: Tag[]; disabled: boolean; onSave: (ids: string[]) => Promise<void>; action: ReturnType<typeof useAction>;
 }) {
   const [selection, setSelection] = useState(note.tagIds);
   const [saved, setSaved] = useState(false);
@@ -153,7 +166,7 @@ function Assignments({ note, tags, onSave, action }: {
       setSaved(true);
     });
   }}>
-    <fieldset disabled={action.busy}>
+    <fieldset disabled={action.busy || disabled}>
       <legend>Note tags</legend>
       <div className="tag-options">
         {tags.map((tag) => <label key={tag.id}>

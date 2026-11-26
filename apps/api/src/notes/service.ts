@@ -2,6 +2,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import type pg from 'pg';
 import { authError } from '../auth/browser.js';
 import { AUTH_DB } from '../auth/service.js';
+import { transaction } from '../common/database.js';
+import { embeddingModel } from '../indexing/config.js';
+import { enqueueIndexing } from '../indexing/queue.js';
 import type { Note } from './dto.js';
 
 const fields = `id, title, body, content_revision AS "contentRevision",
@@ -19,13 +22,19 @@ function requireNote(note: Note | undefined): Note {
 
 @Injectable()
 export class NotesService {
+  private readonly modelId = embeddingModel();
+
   constructor(@Inject(AUTH_DB) private readonly db: pg.Pool) {}
 
   async create(userId: string, title: string, body = '') {
-    const { rows: [note] } = await this.db.query<Note>(`
-      INSERT INTO notes (user_id, title, body) VALUES ($1, $2, $3) RETURNING ${fields}, ARRAY[]::uuid[] AS "tagIds"
-    `, [userId, title, body]);
-    return note;
+    return transaction(this.db, async (client) => {
+      const { rows: [note] } = await client.query<Note>(`
+        INSERT INTO notes (user_id, title, body) VALUES ($1, $2, $3)
+        RETURNING ${fields}, ARRAY[]::uuid[] AS "tagIds"
+      `, [userId, title, body]);
+      await enqueueIndexing(client, userId, note.id, this.modelId);
+      return note;
+    });
   }
 
   async list(userId: string, limit: number, offset: number, tagId?: string) {
@@ -48,18 +57,34 @@ export class NotesService {
   }
 
   async update(userId: string, id: string, title?: string, body?: string) {
-    const changed = 'title <> COALESCE($3, title) OR body <> COALESCE($4, body)';
-    const { rows: [note] } = await this.db.query<Note>(`
-      UPDATE notes SET
-        title = COALESCE($3, title),
-        body = COALESCE($4, body),
-        content_revision = CASE WHEN ${changed} THEN content_revision + 1 ELSE content_revision END,
-        updated_at = CASE WHEN ${changed} THEN clock_timestamp() ELSE updated_at END,
-        indexing_status = CASE WHEN ${changed} THEN 'pending' ELSE indexing_status END
-      WHERE user_id = $1 AND id = $2
-      RETURNING ${fields}, ${tagIds}
-    `, [userId, id, title, body]);
-    return requireNote(note);
+    return transaction(this.db, async (client) => {
+      const { rows } = await client.query<Note>(
+        `SELECT ${fields}, ${tagIds} FROM notes WHERE user_id = $1 AND id = $2 FOR UPDATE`, [userId, id],
+      );
+      const previous = requireNote(rows[0]);
+      const nextTitle = title ?? previous.title;
+      const nextBody = body ?? previous.body;
+      if (nextTitle === previous.title && nextBody === previous.body) return previous;
+      const { rows: [note] } = await client.query<Note>(`
+        UPDATE notes SET title = $3, body = $4, content_revision = content_revision + 1,
+          updated_at = clock_timestamp(), indexing_status = 'pending'
+        WHERE user_id = $1 AND id = $2 RETURNING ${fields}, ${tagIds}
+      `, [userId, id, nextTitle, nextBody]);
+      await enqueueIndexing(client, userId, id, this.modelId);
+      return note;
+    });
+  }
+
+  async reindex(userId: string, id: string) {
+    await transaction(this.db, async (client) => {
+      const { rows: [note] } = await client.query<{ indexing_status: Note['indexingStatus']; indexing_model: string | null }>(
+        'SELECT indexing_status, indexing_model FROM notes WHERE user_id = $1 AND id = $2 FOR UPDATE', [userId, id],
+      );
+      if (!note) throw authError(404, 'NOT_FOUND', 'Resource not found.');
+      if (note.indexing_status !== 'pending' || note.indexing_model !== this.modelId) {
+        await enqueueIndexing(client, userId, id, this.modelId);
+      }
+    });
   }
 
   async delete(userId: string, id: string) {

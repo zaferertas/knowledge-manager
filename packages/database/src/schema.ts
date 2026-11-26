@@ -32,6 +32,8 @@ export const notes = pgTable('notes', {
   title: varchar({ length: 200 }).notNull(),
   body: varchar({ length: 5000 }).default('').notNull(),
   contentRevision: integer('content_revision').default(1).notNull(),
+  indexingModel: text('indexing_model'),
+  indexingRequest: uuid('indexing_request'),
   indexingStatus: text('indexing_status', { enum: ['pending', 'ready', 'failed'] }).default('pending').notNull(),
   createdAt: timestampWithZone('created_at').defaultNow().notNull(),
   updatedAt: timestampWithZone('updated_at').defaultNow().notNull(),

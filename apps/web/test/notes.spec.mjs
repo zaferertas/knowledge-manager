@@ -28,8 +28,18 @@ test('browser CRUD works against PostgreSQL with no Ollama service', async ({ pa
   await page.getByLabel('Body').fill('Watered the seedlings.\nChecked the soil.');
   await page.getByRole('button', { name: 'Save note' }).click();
   await expect(page.getByRole('heading', { name: 'Garden log' })).toBeVisible();
-  await expect(page.getByText('Not yet indexed')).toBeVisible();
+  await expect(page.getByText('Indexing pending')).toBeVisible();
   await expect(page.locator('.note-meta time')).toHaveCount(2);
+  await page.route('**/api/v1/notes/*', async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...await response.json(), indexingStatus: 'failed' } });
+  }, { times: 1 });
+  await page.getByRole('button', { name: 'Refresh indexing status' }).click();
+  await expect(page.getByText('Indexing failed')).toBeVisible();
+  const reindex = page.waitForResponse((response) => response.url().endsWith('/reindex'));
+  await page.getByRole('button', { name: 'Retry indexing' }).click();
+  expect((await reindex).status()).toBe(204);
+  await expect(page.getByText('Indexing pending')).toBeVisible();
 
   await page.reload();
   await page.getByRole('button', { name: /Garden log/ }).click();
