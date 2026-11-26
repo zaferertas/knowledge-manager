@@ -7,6 +7,7 @@ import type { Response } from 'express';
 import { type BrowserPolicy, csrfHeader } from './auth/browser.js';
 import { BROWSER_POLICY } from './auth/guards.js';
 import { NotesModule } from './notes/module.js';
+import { AskModule } from './qa/module.js';
 
 @Controller('health')
 class HealthController {
@@ -16,7 +17,7 @@ class HealthController {
   }
 }
 
-@Module({ imports: [NotesModule], controllers: [HealthController] })
+@Module({ imports: [NotesModule, AskModule], controllers: [HealthController] })
 class AppModule {}
 
 const errors: Record<number, { code: string; message: string }> = {

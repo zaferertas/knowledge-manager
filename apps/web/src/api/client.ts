@@ -10,6 +10,9 @@ export type Note = NoteContent & {
   updatedAt: string;
 };
 export type Tag = { id: string; name: string; createdAt: string };
+export type AskResult =
+  | { status: 'answered'; answer: string; sources: { noteId: string; title: string; excerpt: string }[] }
+  | { status: 'insufficient_evidence'; answer: null; sources: [] };
 type NotePage = { items: Note[]; nextOffset: number | null };
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
@@ -24,13 +27,13 @@ export function errorMessage(error: unknown) {
 }
 
 export function createClient(session?: Session, onExpired?: () => void) {
-  async function request<T>(path: string, method: Method = 'GET', body?: object): Promise<T> {
+  async function request<T>(path: string, method: Method = 'GET', body?: object, timeout = 15_000): Promise<T> {
     const headers = new Headers();
     if (body) headers.set('Content-Type', 'application/json');
     if (session && method !== 'GET') headers.set('X-CSRF-Token', session.csrfToken);
     const response = await fetch(`/api/v1${path}`, {
       method, headers, credentials: 'include', cache: 'no-store',
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(timeout),
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!response.ok) {
@@ -48,6 +51,8 @@ export function createClient(session?: Session, onExpired?: () => void) {
     authenticate: (mode: 'login' | 'register', credentials: Credentials) =>
       request<Session>(`/auth/${mode}`, 'POST', credentials),
     logout: () => request<void>('/auth/logout', 'POST'),
+    // Allow the backend's 30-second embedding and 120-second generation limits plus request overhead.
+    ask: (question: string) => request<AskResult>('/ask', 'POST', { question }, 160_000),
     notes: (tagId: string, offset: number) => {
       const query = new URLSearchParams({ offset: String(offset) });
       if (tagId) query.set('tagId', tagId);

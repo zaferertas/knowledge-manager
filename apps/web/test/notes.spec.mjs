@@ -8,7 +8,7 @@ async function enterCredentials(page) {
   await page.getByLabel('Password', { exact: true }).fill(password);
 }
 
-test('browser CRUD works against PostgreSQL with no Ollama service', async ({ page, context }) => {
+test('browser CRUD works against PostgreSQL when the embedding model is unavailable', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.getByRole('button', { name: 'Create an account' }).click();

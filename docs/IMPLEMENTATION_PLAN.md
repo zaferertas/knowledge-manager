@@ -123,26 +123,33 @@ Work one milestone or coherent sub-step at a time. A milestone is complete only 
 
 **Goal:** Securely answer from indexed notes via `POST /api/v1/ask`, without a standalone search page.
 
-- [ ] Implement owner-filtered exact cosine retrieval of **ready/current-revision/current-model** embeddings, bounded `topK` and calibrated relevance threshold.
-- [ ] Add Ollama answer generation, bounded untrusted-note context, evidence gating and prompt-injection resilience.
-- [ ] Return backend-authorized source metadata; validate generated citations; distinguish insufficient evidence from AI timeout/unavailable.
-- [ ] Document API contract and deterministic fake-model tests; run separate opt-in live-model evaluation.
+- [x] Implement owner-filtered exact cosine retrieval of **ready/current-revision/current-model** embeddings, bounded `topK` and a calibrated relevance threshold.
+- [x] Add Ollama answer generation, bounded untrusted-note context, evidence gating and prompt-injection resilience.
+- [x] Return backend-authorized source metadata, validate generated citations, and distinguish insufficient evidence from AI timeout and unavailability.
+- [x] Document the API contract and verify behavior with deterministic fake-model tests.
+- [x] Run the opt-in live-model evaluation and calibrate the cosine threshold with the configured models.
 
 **Tests:** Answerable/unanswerable questions, zero/pending notes, multi-user isolation, stale revisions, fake citations, malicious note text, timeout/unavailable.
 
 **Exit:** API returns supported answers with valid citations or explicit abstention; no separate keyword/semantic results page or persisted chat.
 
+**Verification:** `node scripts/verify.mjs ci` passed with PostgreSQL and pgvector. The integration test exercised owner, revision and model filtering, nearest-neighbor order, relevance gating, citation and excerpt validation, deletion during inference, and distinct timeout and unavailability responses. The browser CRUD regression also passed with Ollama offline.
+
+**Live evaluation:** The 20-question opt-in evaluation completed using `nomic-embed-text`, `qwen2.5:3b`, and a 120-second generation timeout on CPU. At the initial 0.50 cutoff, retrieval found all 16 expected notes. Generation cited the expected note with a supporting excerpt for 8 of 16 supported questions and abstained on all 4 unsupported questions. Live generation took 8.6–79.6 seconds per question. The recorded scores support a new 0.67 cutoff, which retains all 16 expected notes and screens out all 4 unsupported questions in this dataset before generation. The generation metrics come from the 0.50 run.
+
 ### Milestone 7 — Add Ask Your Notes to web
 
 **Goal:** Complete the one-shot AI experience without regressing note CRUD.
 
-- [ ] Add question form, loading, supported answer, source links to note detail, abstention and recoverable error states.
-- [ ] Display indexing ready/failed/pending states accurately; make reindex/retry discoverable.
-- [ ] Keep the editor plain text; do not introduce conversations, keyword search, Markdown editing or chat persistence.
+- [x] Add question form, loading, supported answer, source links to note detail, abstention and recoverable error states.
+- [x] Display indexing ready/failed/pending states accurately; make reindex/retry discoverable.
+- [x] Keep the editor plain text; do not introduce conversations, keyword search, Markdown editing or chat persistence.
 
 **Tests:** Browser E2E create note → indexing → ask → open source; insufficient evidence; model-off; regression tests for CRUD/tags.
 
 **Exit:** All approved web user journeys work with the same backend APIs.
+
+**Verification:** `node scripts/verify.mjs ci` passed, including PostgreSQL integration tests and both builds. `pnpm test:e2e` passed both browser tests against PostgreSQL and pgvector using Opera's Chromium executable. The Ask test exercised note creation, Graphile indexing, the ready state, the Ask loading state, abstention, model unavailability, a successful follow-up request, and citation navigation. The CRUD test covered the pending state and a simulated failed status, retry, and notes and tags regressions. The suite used deterministic model responses.
 
 ### Milestone 8 — Backend + web MVP release gate (mobile dependency)
 

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
 import pg from 'pg';
 import { runOnce } from 'graphile-worker';
 import { migrateDatabase } from '../../../packages/database/migrate.mjs';
@@ -8,6 +9,8 @@ import { createApp } from '../dist/app.js';
 import { embeddingModel } from '../dist/indexing/config.js';
 import { backfillIndexing, reconcileFailedIndexing } from '../dist/indexing/queue.js';
 import { indexNoteTask } from '../dist/indexing/task.js';
+import { checkAsk } from './ask-cases.mjs';
+import { evaluateLiveAsk } from './ask-live.mjs';
 
 test('notes CRUD is validated, paginated and scoped to the signed-in owner', async (t) => {
   const database = `knowledge_hub_notes_${randomUUID().replaceAll('-', '')}`;
@@ -71,6 +74,17 @@ test('notes CRUD is validated, paginated and scoped to the signed-in owner', asy
       const payload = await expectStatus(result, status);
       assert.deepEqual(Object.keys(payload).sort(), ['code', 'message']);
       assert.equal(payload.code, code);
+    }
+
+    await t.test('Ask validates evidence and isolates current owner notes', (subtest) =>
+      checkAsk(subtest, db, register, api, expectStatus, expectError, embeddingModel()));
+
+    if (process.env.RUN_LIVE_ASK === '1') {
+      await t.test('live Ask evaluation on 20 synthetic questions', async (subtest) => {
+        const session = await register('ask-live@example.test');
+        const { user } = await expectStatus(api('/auth/me', 'GET', undefined, session), 200);
+        await evaluateLiveAsk(subtest, db, user.id);
+      });
     }
 
     await expectError(request('', 'GET', undefined, {}), 401, 'AUTH_REQUIRED');
@@ -292,8 +306,16 @@ test('notes CRUD is validated, paginated and scoped to the signed-in owner', asy
 
       inference = async () => { throw new Error('Synthetic outage details'); };
       await runOnce({ pgPool: db, taskList: { 'index-note': task } });
-      const { rows: [retry] } = await db.query('SELECT attempts, last_error FROM graphile_worker.jobs WHERE key = $1',
-        [`index-note:${backfilled.requestId}`]);
+      // runOnce can finish before Graphile's asynchronous failure update is visible.
+      let retry;
+      const deadline = performance.now() + 2000;
+      do {
+        const { rows } = await db.query('SELECT attempts, last_error FROM graphile_worker.jobs WHERE key = $1',
+          [`index-note:${backfilled.requestId}`]);
+        [retry] = rows;
+        if (retry?.last_error) break;
+        await delay(20);
+      } while (performance.now() < deadline);
       assert.deepEqual(retry, { attempts: 1, last_error: 'Note indexing failed.' });
       assert.equal((await read()).indexingStatus, 'pending');
 

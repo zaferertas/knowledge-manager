@@ -1,3 +1,4 @@
+import { AiFailure } from '../ai/failure.js';
 import { embeddingDimensions, embeddingModel } from './config.js';
 
 export interface EmbeddingProvider {
@@ -20,12 +21,13 @@ export function ollamaEmbeddingProvider(): EmbeddingProvider {
   const endpoint = new URL('/api/embed', process.env.OLLAMA_URL ?? 'http://127.0.0.1:11434');
 
   async function embed(input: string) {
+    const signal = AbortSignal.timeout(30_000);
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: modelId, input, truncate: false }),
-        signal: AbortSignal.timeout(30_000),
+        signal,
         redirect: 'error',
       });
       if (response.ok) {
@@ -36,7 +38,7 @@ export function ollamaEmbeddingProvider(): EmbeddingProvider {
     } catch {
       // Keep endpoint details, model responses and submitted text out of job errors.
     }
-    throw new Error('Ollama embedding failed.');
+    throw new AiFailure(signal.aborted ? 'AI_TIMEOUT' : 'AI_UNAVAILABLE', 'Ollama embedding failed.');
   }
 
   return {

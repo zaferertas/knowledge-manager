@@ -233,7 +233,7 @@ flowchart TD
 - Retrieve up to `topK` ready, user-owned notes using cosine distance; measure/calibrate an evidence threshold with synthetic evaluation data. A nearest neighbor alone is not proof of relevance.
 - Use a bounded prompt/context budget and note size cap; one embedding per note, no chunking for MVP.
 - Tell the generator to answer only from provided notes and acknowledge missing evidence. Treat notes as **untrusted data**, not instructions.
-- Include canonical source IDs in the prompt/context. Validate any model-referenced IDs against the retrieved IDs, or render only backend-authorized sources. Citations indicate provenance; test factual support independently rather than assuming citations guarantee correctness.
+- Give the generator up to three note titles and the first 1,000 code points of each body. Ask for structured verbatim excerpts paired with canonical note IDs. Verify each excerpt against the supplied text, recheck all supplied note revisions and indexing requests after inference, and derive the plain-text answer and source metadata on the backend. Evaluate whether the selected excerpts actually address the question.
 - If the model fails/overruns its timeout, return a distinct, retryable `AI_UNAVAILABLE` / `AI_TIMEOUT` error; do not conflate this with `insufficient_evidence`.
 - Implement retrieval and answer generation with interfaces and mocks; a real-model evaluation suite is a separate, opt-in test task.
 
@@ -272,14 +272,14 @@ Tag names preserve the trimmed display spelling. The uniqueness key uses NFC nor
 { "question": "What did I learn about structured concurrency?" }
 ```
 
-**Example success** (illustrative):
+**Example success** (illustrative). The answer consists of the validated excerpts in order.
 
 ```json
 {
   "status": "answered",
-  "answer": "Your notes describe structured concurrency as ...",
+  "answer": "Child coroutines run within the lifetime of their parent scope.",
   "sources": [
-    { "noteId": "<uuid>", "title": "Coroutines and scopes", "excerpt": "..." }
+    { "noteId": "<uuid>", "title": "Coroutines and scopes", "excerpt": "Child coroutines run within the lifetime of their parent scope." }
   ]
 }
 ```

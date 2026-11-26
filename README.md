@@ -1,6 +1,6 @@
 # Personal Knowledge Hub
 
-Personal Knowledge Hub is a private notes project. Register or sign in from the web app to create and edit plain-text notes, manage tags, and filter your notes by tag. The app stores notes in PostgreSQL and shows their creation and update times. Notes display **Not yet indexed** during this milestone. The browser workflow requires PostgreSQL and runs with Ollama offline.
+Personal Knowledge Hub is a private notes project. Register or sign in from the web app to create and edit plain-text notes, manage tags, and filter your notes by tag. The app stores notes in PostgreSQL and shows their creation and update times. Notes display their current indexing status. The browser workflow requires PostgreSQL and runs with Ollama offline.
 
 ## Local setup
 
@@ -38,7 +38,7 @@ pnpm --filter @knowledge-hub/web exec playwright install chromium
 pnpm test:e2e
 ```
 
-The suite starts its own API on port 3104 and web server on port 4173, and creates and drops a temporary database. Keep both ports free and use a PostgreSQL test role with permission to create databases. On a host where Playwright cannot install Chromium, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to a compatible Chromium executable.
+The suite starts its own API on port 3104, web server on port 4173, and indexing worker, and creates and drops a temporary database. A deterministic Ollama HTTP fixture covers indexing and answers as well as model unavailability. Keep both ports free and use a PostgreSQL test role with permission to create databases. On a host where Playwright cannot install Chromium, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to a compatible Chromium executable.
 
 ## Browser authentication
 
@@ -117,3 +117,46 @@ worker, configure both with the new model ID, and start the worker before
 restarting the API. Worker startup queues a new indexing request for each note
 with a different recorded model ID. Use a distinct model ID when changing model
 contents so existing notes are reindexed.
+
+## Ask API
+
+Start Ollama and pull the configured generation model alongside the embedding
+model.
+
+```sh
+ollama pull qwen2.5:3b
+```
+
+Send `POST /api/v1/ask` with `{"question":"Which trail has the red bridge?"}`,
+the session cookie, an allowed `Origin`, and the session's `X-CSRF-Token`.
+The JSON object accepts only a nonblank question of up to 500 Unicode code points.
+
+- HTTP 200 with `status: "answered"` returns an `answer` string and a
+  `sources` array of `{noteId, title, excerpt}` objects. Render the text as plain
+  text and construct note navigation from the structured `noteId` field.
+- HTTP 200 with `status: "insufficient_evidence"` returns `answer: null` and
+  `sources: []`. This covers empty or unindexed collections, weak matches,
+  model abstentions, invalid citations, and notes changed during generation.
+- HTTP 503 with `AI_TIMEOUT` or `AI_UNAVAILABLE` is retryable. HTTP 429 with
+  `RATE_LIMITED` includes `Retry-After`. Each API process allows ten questions
+  per account per minute and two concurrent Ask requests.
+
+Retrieval takes up to three current indexed notes with cosine similarity of at
+least 0.67. The cutoff was calibrated on the 20-question synthetic evaluation.
+Ollama selects verbatim evidence using each note's title and the first 1,000
+body code points. The API checks that every returned excerpt appears in the
+supplied note and assembles the answer from those excerpts. Relevance still
+depends on retrieval and the model's passage selection. Requests have no saved
+history. The generation timeout defaults to 45 seconds and can be configured
+with `GENERATION_TIMEOUT_MS`.
+
+The opt-in evaluation uses a disposable PostgreSQL database and 20 synthetic
+questions. It reports Recall@3, expected-source citation rate, unsupported
+question abstention, excerpts for manual relevance review, and per-question
+retrieval and generation timings. A threshold sweep compares recall and how
+often unsupported questions reach generation. Start PostgreSQL and Ollama and pull both
+models before running it.
+
+```sh
+RUN_LIVE_ASK=1 pnpm --filter @knowledge-hub/api test:integration
+```
