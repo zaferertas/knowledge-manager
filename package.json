@@ -4,6 +4,7 @@
   "packageManager": "pnpm@12.16.1",
   "engines": { "node": "^24.7.0" },
   "scripts": {
+    "openapi:export": "pnpm --filter @knowledge-hub/api build && node scripts/export-openapi.mjs",
     "test:e2e": "pnpm --filter @knowledge-hub/api build && pnpm --filter @knowledge-hub/web test:e2e",
     "dev": "pnpm --parallel --filter './apps/*' run dev",
     "lint": "oxlint --deny correctness apps/api/src apps/web/src",

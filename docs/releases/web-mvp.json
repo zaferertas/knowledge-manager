@@ -1,0 +1,16 @@
+{
+  "milestone": 8,
+  "status": "awaiting_review",
+  "approvedBy": null,
+  "evidence": {
+    "ciRun": null,
+    "webCrudE2E": "Local pnpm test:e2e passed both CRUD and Ask using Opera. See docs/releases/web-mvp.md.",
+    "apiSecurity": "Local node scripts/verify.mjs ci passed HTTP auth, CSRF, owner isolation, and Ask source checks. See docs/releases/web-mvp.md.",
+    "openApiContract": "The local HTTP integration test matched docs/api/v1.openapi.json exactly with the production cookie policy."
+  },
+  "limitations": [
+    "Hosted CI evidence and human approval are outstanding.",
+    "Live generation evidence is from the earlier 0.50 threshold run. CPU latency and expected-source coverage varied.",
+    "Native session transport requires platform parity tests in Milestone 9."
+  ]
+}

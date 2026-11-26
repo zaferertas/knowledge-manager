@@ -241,6 +241,8 @@ flowchart TD
 
 Use prefix `/api/v1`, JSON DTOs, standardized error codes, input validation, a documented pagination strategy, and OpenAPI generated from the application. Client contracts must not expose session token hashes or raw model vectors.
 
+The [HTTPS v1 OpenAPI baseline](api/v1.openapi.json) is verified against the running API. Review compatible updates to the snapshot alongside implementation changes. Breaking changes require a versioning decision. [ADR-009](adr/009-native-session-transport.md) records the native transport proposal and the checks deferred to Milestone 9.
+
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/auth/register` | Create account |

@@ -9,7 +9,7 @@ async function main() {
   await app.listen(port, '127.0.0.1');
 }
 
-void main().catch((error: unknown) => {
-  console.error(error);
+void main().catch(() => {
+  console.error(JSON.stringify({ event: 'api_start_failed' }));
   process.exitCode = 1;
 });
